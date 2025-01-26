@@ -125,6 +125,29 @@ module blueprint::bank {
     const DEPOSITER: address = @0xA;
 
     #[test]
+    #[expected_failure(abort_code = EIncorrectAmount)]
+    fun test_deposit_invalid_amount() {
+        // given
+        let mut ts = ts::begin(@0x0);
+        {
+            ts::next_tx(&mut ts, ADMIN);
+            init(ts.ctx());
+        };
+
+        // when
+        {
+            ts::next_tx(&mut ts, DEPOSITER);
+            let coin = coin::mint_for_testing<SUI>(0, ts::ctx(&mut ts));
+            let mut bank = ts::take_shared<AssetBank>(&ts);
+            deposit<SUI>(&mut bank, coin, ts.ctx());
+            ts::return_shared(bank);
+        };
+
+        // cleanup
+        ts::end(ts);
+    }
+
+    #[test]
     fun test_deposit_withdrawal() {
         let mut ts = ts::begin(@0x0);
 
