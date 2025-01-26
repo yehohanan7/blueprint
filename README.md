@@ -1,4 +1,4 @@
-## bank
+## Bank
 * Accepts deposit of Coin<T> from user
 * Moves the deposited Coin<T> to the dynamic field of AssetBank identified by (`bank_id, AssetType<T>`)
 * If the dynamic field for the asset is already present, the deposited coin is joined
