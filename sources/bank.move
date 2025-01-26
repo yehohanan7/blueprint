@@ -125,7 +125,7 @@ module blueprint::bank {
     const DEPOSITER: address = @0xA;
 
     #[test]
-    fun test_deposit() {
+    fun test_deposit_withdrawal() {
         let mut ts = ts::begin(@0x0);
 
         // when the package is published
@@ -134,7 +134,7 @@ module blueprint::bank {
             init(ts.ctx());
         };
 
-        // then it is initialised with correct state
+        // then the package is initialised with correct intial stats
         {
             ts::next_tx(&mut ts, ADMIN);
             let bank = ts::take_shared<AssetBank>(&ts);
@@ -152,14 +152,62 @@ module blueprint::bank {
             ts::return_shared(bank);
         };
 
-        // then the depositor owns a receipt
+
+        // then
         {
-            ts::next_tx(&mut ts, DEPOSITER);
+            let effects = ts::next_tx(&mut ts, DEPOSITER);
+            let bank = ts::take_shared<AssetBank>(&ts);
+
+            // the asset is added to the bank
+            let balance: &Coin<SUI> = df::borrow(&bank.id, AssetType<SUI> {});
+            assert!(balance.value() == 100);
+            assert!(bank.total_deposits() == 1);
+            assert!(bank.active_nfts() == 1);
+
+            // and depositer receives a receipt
             let receipt = ts::take_from_sender<Receipt<SUI>>(&ts);
             assert!(receipt.deposit_id == 1);
             assert!(receipt.amount == 100);
             assert!(receipt.depositor == DEPOSITER);
+
+            // and deposit event emitted
+            let events = ts::num_user_events(&effects);
+            assert!(events == 1);
+
             ts::return_to_sender(&ts, receipt);
+            ts::return_shared(bank);
+        };
+
+        // when the depositor withdraws the asset
+        {
+            ts::next_tx(&mut ts, DEPOSITER);
+            let receipt = ts::take_from_sender<Receipt<SUI>>(&ts);
+            let mut bank = ts::take_shared<AssetBank>(&ts);
+            withdraw<SUI>(&mut bank, receipt, ts.ctx());
+            ts::return_shared(bank);
+        };
+
+        // then
+        {
+            let effects = ts::next_tx(&mut ts, DEPOSITER);
+            let bank = ts::take_shared<AssetBank>(&ts);
+
+            // the asset is removed from the bank
+            let balance: &Coin<SUI> = df::borrow(&bank.id, AssetType<SUI> {});
+            assert!(balance.value() == 0);
+            assert!(bank.total_deposits() == 1);
+            assert!(bank.active_nfts() == 0);
+
+            // and returned to the depositer
+            let coin = ts::take_from_sender<Coin<SUI>>(&ts);
+            assert!(coin.value() == 100);
+
+            // and withdraw event emitted
+            let events = ts::num_user_events(&effects);
+            assert!(events == 1);
+
+            ts::return_to_sender(&ts, coin);
+            ts::return_shared(bank);
         };
 
         // cleanup
